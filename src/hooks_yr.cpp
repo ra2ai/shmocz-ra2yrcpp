@@ -381,19 +381,27 @@ DEFINE_HOOK(0x55de4f, GameLoopBegin, 0x7) {
   (void)R;
   auto [mut, M] = MainData::acquire();
 
+  auto* D = M->data();
+  auto* game_state = D->sv.mutable_game_state();
+
+  // FIXME: Using cfg this way isnt thread safe
+  const auto single_step = ra2yrcpp::Main::get()->config().c().single_step;
+  if (single_step) {
+    // Update state before saving it.
+    game_state->set_single_step_paused(true);
+  }
+
   // Save state
   StateSave::get()->execute();
 
   // If in single-step mode, release storage lock and wait for game to be
   // unlocked.
-  auto* D = M->data();
-
-  // FIXME: Using cfg this way isnt thread safe
-  if (ra2yrcpp::Main::get()->config().c().single_step) {
-    M->unlock();
+  if (single_step) {
     D->game_paused.store(true);
+    M->unlock();
     D->game_paused.wait(false);
     M->lock();
+    game_state->set_single_step_paused(false);
   }
 
   GameCommandData::get()->consume_work();

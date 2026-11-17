@@ -96,27 +96,6 @@ auto unit_command() {
   });
 }
 
-auto get_game_state() {
-  return get_cmd<ra2yrproto::commands::GetGameState>([](auto* Q) {
-    auto& M = ra2yrcpp::hooks_yr::MainData::get();
-    M.lock();
-    auto* D = M.data();
-    bool single_step = ra2yrcpp::Main::get()->config().c().single_step;
-    // Unpause game if single-step mode.
-    if (single_step && D->game_paused.get()) {
-      M.unlock();
-      D->game_paused.wait(true);
-      M.lock();
-    }
-
-    Q->command_data().mutable_state()->CopyFrom(D->sv.game_state());
-    if (single_step) {
-      D->game_paused.store(false);
-    }
-    M.unlock();
-  });
-}
-
 auto inspect_configuration() {
   return get_cmd<ra2yrproto::commands::InspectConfiguration>([](auto* Q) {
     auto [mut, M] = ra2yrcpp::hooks_yr::MainData::acquire();
@@ -285,6 +264,19 @@ auto read_value() {
   });
 }
 
+auto unpause() {
+  return get_cmd<ra2yrproto::commands::Unpause>([](auto* Q) {
+    auto [mut, M] = ra2yrcpp::hooks_yr::MainData::acquire();
+    auto* D = M->data();
+    if (D->game_paused.get()) {
+      D->game_paused.store(false);
+      Q->command_data().set_was_paused(true);
+    } else {
+      Q->command_data().set_was_paused(false);
+    }
+  });
+}
+
 }  // namespace cmd
 
 std::map<std::string, ra2yrcpp::command::iservice_cmd::handler_t>
@@ -292,12 +284,12 @@ commands_yr::get_commands() {
   return {
       cmd::click_event(),            //
       cmd::unit_command(),           //
-      cmd::get_game_state(),         //
       cmd::inspect_configuration(),  //
       cmd::mission_clicked(),        //
       cmd::add_event(),              //
       cmd::place_query(),            //
       cmd::send_message(),           //
       cmd::read_value(),             //
+      cmd::unpause(),                //
   };
 }
