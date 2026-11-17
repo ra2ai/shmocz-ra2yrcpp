@@ -43,9 +43,16 @@ void Cell::copy_to(ra2yrproto::ra2yr::Cell* dst, const Cell* src) {
   }
   dst->set_wall_owner_index(src->wall_owner_index);
   dst->set_overlay_type_index(src->overlay_type_index);
+  dst->set_visibility(static_cast<i32>(src->visibility));
+}
+
+void ClassParser::Abstract() {
+  auto* P = reinterpret_cast<AbstractClass*>(c.src);
+  (void)P;
 }
 
 void ClassParser::Object() {
+  Abstract();
   auto* P = reinterpret_cast<ObjectClass*>(c.src);
   T->set_health(P->Health);
   T->set_selected(P->IsSelected);
@@ -76,7 +83,12 @@ void ClassParser::Techno() {
   auto* P = reinterpret_cast<TechnoClass*>(c.src);
   T->set_pointer_house(reinterpret_cast<u32>(P->Owner));
   T->set_pointer_initial_owner(reinterpret_cast<u32>(P->InitialOwner));
-  // TODO: armor multiplier
+  T->set_armor_multiplier(P->ArmorMultiplier);
+  T->set_firepower_multiplier(P->FirepowerMultiplier);
+  T->set_veterancy(P->Veterancy.Veterancy);
+  T->set_veterancy_rank(static_cast<ra2yrproto::ra2yr::VeterancyRank>(
+      P->Veterancy.GetRemainingLevel()));
+  T->set_cloak_state(static_cast<ra2yrproto::ra2yr::CloakState>(P->CloakState));
 }
 
 void ClassParser::Foot() {
@@ -94,6 +106,8 @@ void ClassParser::Foot() {
       dd->set_z(coord.Z);
     }
   }
+  T->set_speed_percentage(P->SpeedPercentage);
+  T->set_speed_multiplier(P->SpeedMultiplier);
 }
 
 void ClassParser::Aircraft() {
@@ -122,6 +136,24 @@ void ClassParser::Infantry() {
   set_type_class(P->Type, ra2yrproto::ra2yr::ABSTRACT_TYPE_INFANTRY);
 }
 
+void ClassParser::SuperWeapon() {
+  Abstract();
+  auto* P = reinterpret_cast<SuperClass*>(c.src);
+  set_type_class(P->Type, ra2yrproto::ra2yr::ABSTRACT_TYPE_SUPER);
+  T->set_pointer_house(reinterpret_cast<u32>(P->Owner));
+  T->set_granted(P->Granted);
+  T->set_one_time(P->OneTime);
+  T->set_is_charged(P->IsCharged);
+  T->set_is_on_hold(P->IsOnHold);
+  T->set_time_left(P->RechargeTimer.GetTimeLeft());
+}
+
+void ClassParser::Terrain() {
+  Object();
+  auto* P = reinterpret_cast<TerrainClass*>(c.src);
+  set_type_class(P->Type, ra2yrproto::ra2yr::ABSTRACT_TYPE_TERRAIN);
+}
+
 void ClassParser::parse() {
   T->set_pointer_self(reinterpret_cast<u32>(c.src));
   auto t = ra2::abi::AbstractClass_WhatAmI::call(
@@ -135,6 +167,10 @@ void ClassParser::parse() {
     Infantry();
   } else if (t == AircraftClass::AbsID) {
     Aircraft();
+  } else if (t == SuperClass::AbsID) {
+    SuperWeapon();
+  } else if (t == TerrainClass::AbsID) {
+    Terrain();
   } else {
     // eprintf("unknown ObjectClass: {}", static_cast<int>(t));
   }
@@ -162,6 +198,28 @@ void TypeClassParser::AircraftType() {
   T->set_type(ra2yrproto::ra2yr::ABSTRACT_TYPE_AIRCRAFTTYPE);
 }
 
+static void parse_AbilitiesStruct(ra2yrproto::ra2yr::AbilitiesStruct* dst,
+                                  const AbilitiesStruct& src) {
+  dst->set_faster(src.FASTER);
+  dst->set_stronger(src.STRONGER);
+  dst->set_firepower(src.FIREPOWER);
+  dst->set_scatter(src.SCATTER);
+  dst->set_rof(src.ROF);
+  dst->set_sight(src.SIGHT);
+  dst->set_cloak(src.CLOAK);
+  dst->set_tiberium_proof(src.TIBERIUM_PROOF);
+  dst->set_vein_proof(src.VEIN_PROOF);
+  dst->set_self_heal(src.SELF_HEAL);
+  dst->set_explodes(src.EXPLODES);
+  dst->set_radar_invisible(src.RADAR_INVISIBLE);
+  dst->set_sensors(src.SENSORS);
+  dst->set_fearless(src.FEARLESS);
+  dst->set_c4(src.C4);
+  dst->set_tiberium_heal(src.TIBERIUM_HEAL);
+  dst->set_guard_area(src.GUARD_AREA);
+  dst->set_crusher(src.CRUSHER);
+}
+
 void TypeClassParser::TechnoType() {
   ObjectType();
   auto* P = reinterpret_cast<TechnoTypeClass*>(c.src);
@@ -182,6 +240,110 @@ void TypeClassParser::TechnoType() {
   T->set_requires_stolen_soviet_tech(P->RequiresStolenSovietTech);
   T->set_requires_stolen_third_tech(P->RequiresStolenThirdTech);
   T->set_strength(P->Strength);
+  T->set_sight(P->Sight);
+  T->set_guard_range(P->GuardRange);
+  T->set_build_time_multiplier(P->BuildTimeMultiplier);
+  T->set_techno_rot(P->ROT);
+  T->set_storage(P->Storage);
+
+  T->set_teleporter(P->Teleporter);
+  T->set_bunkerable(P->Bunkerable);
+  T->set_immune_to_psionics(P->ImmuneToPsionics);
+
+  T->set_speed(P->Speed);
+  T->set_speed_type(static_cast<ra2yrproto::ra2yr::SpeedType>(P->SpeedType));
+  T->set_movement_zone([](MovementZone mz) {
+    // no negative enum value
+    if (mz == MovementZone::None) {
+      return ra2yrproto::ra2yr::MovementZone::MOVEMENT_ZONE_None;
+    }
+    return static_cast<ra2yrproto::ra2yr::MovementZone>(mz);
+  }(P->MovementZone));
+
+  T->set_prevent_attack_move(P->PreventAttackMove);
+  T->set_opportunity_fire(P->OpportunityFire);
+
+  if (P->Weapon[0].WeaponType) {
+    T->set_pointer_primary_weapon(
+        reinterpret_cast<u32>(P->Weapon[0].WeaponType));
+  }
+  if (P->EliteWeapon[0].WeaponType) {
+    T->set_pointer_elite_primary_weapon(
+        reinterpret_cast<u32>(P->EliteWeapon[0].WeaponType));
+  }
+
+  if (P->Weapon[1].WeaponType) {
+    T->set_pointer_secondary_weapon(
+        reinterpret_cast<u32>(P->Weapon[1].WeaponType));
+  }
+  if (P->EliteWeapon[1].WeaponType) {
+    T->set_pointer_elite_secondary_weapon(
+        reinterpret_cast<u32>(P->EliteWeapon[1].WeaponType));
+  }
+
+  T->set_naval_targeting(
+      static_cast<ra2yrproto::ra2yr::LandTargetingType>(P->NavalTargeting));
+  T->set_land_targeting(
+      static_cast<ra2yrproto::ra2yr::NavalTargetingType>(P->LandTargeting));
+  if (P->AirstrikeTeamType) {
+    T->set_pointer_airstrike_team_type(
+        reinterpret_cast<u32>(P->AirstrikeTeamType));
+  }
+  T->set_airstrike_team(P->AirstrikeTeam);
+  T->set_airstrike_recharge_time(P->AirstrikeRechargeTime);
+
+  if (P->EliteAirstrikeTeamType) {
+    T->set_pointer_elite_airstrike_team_type(
+        reinterpret_cast<u32>(P->EliteAirstrikeTeamType));
+  }
+  T->set_elite_airstrike_team(P->EliteAirstrikeTeam);
+  T->set_elite_airstrike_recharge_time(P->EliteAirstrikeRechargeTime);
+
+  T->set_ifv_mode(P->IFVMode);
+  T->set_gunner(P->Gunner);
+
+  T->set_omni_crusher(P->OmniCrusher);
+  T->set_omni_crush_resistant(P->OmniCrushResistant);
+
+  T->set_gap_generator(P->GapGenerator);
+  T->set_gap_radius_in_cells(P->GapRadiusInCells);
+  T->set_super_gap_radius_in_cells(P->SuperGapRadiusInCells);
+
+  T->set_can_disguise(P->CanDisguise);
+  T->set_perma_disguise(P->PermaDisguise);
+  T->set_disguise_when_still(P->DisguiseWhenStill);
+  T->set_detect_disguise(P->DetectDisguise);
+  T->set_detect_disguise_range(P->DetectDisguiseRange);
+
+  T->set_underwater(P->Underwater);
+  T->set_cloakable(P->Cloakable);
+  T->set_cloaking_speed(P->CloakingSpeed);
+  T->set_sensors_sight(P->SensorsSight);
+
+  T->set_pointer_spawns(reinterpret_cast<u32>(P->Spawns));
+  T->set_spawns_number(P->SpawnsNumber);
+  T->set_spawn_regen_rate(P->SpawnRegenRate);
+  T->set_spawn_reload_rate(P->SpawnReloadRate);
+
+  T->set_pointer_enslaves(reinterpret_cast<u32>(P->Enslaves));
+  T->set_slaves_number(P->SlavesNumber);
+  T->set_slave_regen_rate(P->SlaveRegenRate);
+  T->set_slave_reload_rate(P->SlaveReloadRate);
+
+  T->set_pointer_deploys_into(reinterpret_cast<u32>(P->DeploysInto));
+  T->set_pointer_undeploys_into(reinterpret_cast<u32>(P->UndeploysInto));
+  T->set_deploy_to_land(P->DeployToLand);
+
+  T->set_passengers(P->Passengers);
+  T->set_size_limit(P->SizeLimit);
+  T->set_deploy_time(P->DeployTime);
+  T->set_open_topped(P->OpenTopped);
+  T->set_open_transport_weapon(P->OpenTransportWeapon);
+
+  T->set_flight_level(P->FlightLevel);
+
+  parse_AbilitiesStruct(T->mutable_veteran_abilities(), P->VeteranAbilities);
+  parse_AbilitiesStruct(T->mutable_elite_abilities(), P->EliteAbilities);
 }
 
 void TypeClassParser::UnitType() {
@@ -190,6 +352,8 @@ void TypeClassParser::UnitType() {
 
   T->set_array_index(P->ArrayIndex);
   T->set_type(ra2yrproto::ra2yr::ABSTRACT_TYPE_UNITTYPE);
+  T->set_harvester(P->Harvester);
+  T->set_is_simple_deployer(P->IsSimpleDeployer);
 }
 
 void TypeClassParser::InfantryType() {
@@ -198,12 +362,30 @@ void TypeClassParser::InfantryType() {
 
   T->set_array_index(P->ArrayIndex);
   T->set_type(ra2yrproto::ra2yr::ABSTRACT_TYPE_INFANTRYTYPE);
+  T->set_fearless(P->Fearless);
+  T->set_harvest_rate(P->HarvestRate);
+
+  T->set_engineer(P->Engineer);
+  T->set_c4(P->C4);
+  T->set_agent(P->Agent);
+  T->set_civilian(P->Civilian);
+
+  T->set_occupier(P->Occupier);
+  T->set_pointer_occupy_weapon(
+      reinterpret_cast<u32>(P->OccupyWeapon.WeaponType));
+  T->set_pointer_elite_occupy_weapon(
+      reinterpret_cast<u32>(P->EliteOccupyWeapon.WeaponType));
+
+  T->set_deployer(P->Deployer);
+  T->set_deployed_crushable(P->DeployedCrushable);
 }
 
 void TypeClassParser::ObjectType() {
   AbstractType();
   auto* P = reinterpret_cast<ObjectTypeClass*>(c.src);
   T->set_armor_type(static_cast<ra2yrproto::ra2yr::Armor>(P->Armor));
+  T->set_strength(P->Strength);  // duplicate? OverlayTypeClass::Strength
+  T->set_crushable(P->Crushable);
 }
 
 void TypeClassParser::BuildingType() {
@@ -217,6 +399,30 @@ void TypeClassParser::BuildingType() {
   T->set_wall(P->Wall);
   T->set_build_category(
       static_cast<ra2yrproto::ra2yr::BuildCategory>(P->BuildCat));
+  T->set_base_normal(P->BaseNormal);
+  T->set_eligible_for_ally_building(P->EligibileForAllyBuilding);
+  T->set_number_of_docks(P->NumberOfDocks);
+  T->set_infantry_absorb(P->InfantryAbsorb);
+  T->set_super_weapon(P->SuperWeapon);
+  T->set_max_number_occupants(P->MaxNumberOccupants);
+
+  T->set_gate(P->Gate);
+  T->set_construction_yard(P->ConstructionYard);
+  T->set_refinery(P->Refinery);
+  T->set_radar(P->Radar);
+  T->set_spy_sat(P->SpySat);
+  T->set_bunker(P->Bunker);
+
+  T->set_adjacent(P->Adjacent);
+  T->set_foundation(static_cast<ra2yrproto::ra2yr::Foundation>(P->Foundation));
+
+  T->set_produce_cash_startup(P->ProduceCashStartup);
+  T->set_produce_cash_amount(P->ProduceCashAmount);
+  T->set_produce_cash_delay(P->ProduceCashDelay);
+
+  T->set_unit_repair(P->UnitRepair);
+  T->set_units_gain_self_heal(P->UnitsGainSelfHeal);
+  T->set_infantry_gain_self_heal(P->InfantryGainSelfHeal);
 }
 
 void TypeClassParser::OverlayType() {
@@ -224,8 +430,110 @@ void TypeClassParser::OverlayType() {
   auto* P = reinterpret_cast<OverlayTypeClass*>(c.src);
   T->set_array_index(P->ArrayIndex);
   T->set_wall(P->Wall);
-  T->set_strength(P->Strength);
   T->set_type(ra2yrproto::ra2yr::ABSTRACT_TYPE_OVERLAYTYPE);
+  T->set_crate_trigger(P->CrateTrigger);
+}
+
+void TypeClassParser::SuperWeaponType() {
+  AbstractType();
+  auto* P = reinterpret_cast<SuperWeaponTypeClass*>(c.src);
+  T->set_type(ra2yrproto::ra2yr::ABSTRACT_TYPE_SUPERWEAPONTYPE);
+  T->set_array_index(P->ArrayIndex);
+  T->set_super_weapon_type(
+      static_cast<ra2yrproto::ra2yr::SuperWeaponType>(P->Type));
+  T->set_is_powered(P->IsPowered);
+  T->set_recharge_time(P->RechargeTime);
+  T->set_super_weapon_range(P->Range);
+}
+
+void TypeClassParser::WeaponType() {
+  AbstractType();
+  auto* P = reinterpret_cast<WeaponTypeClass*>(c.src);
+  T->set_type(ra2yrproto::ra2yr::ABSTRACT_TYPE_WEAPONTYPE);
+  T->set_burst(P->Burst);
+  if (P->Projectile) {
+    T->set_pointer_bullet(reinterpret_cast<u32>(P->Projectile));
+  }
+  T->set_damage(P->Damage);
+  T->set_speed(P->Speed);
+  if (P->Warhead) {
+    T->set_pointer_warhead(reinterpret_cast<u32>(P->Warhead));
+  }
+  T->set_rof(P->ROF);
+  T->set_weapon_range(P->Range);
+  T->set_minimum_range(P->MinimumRange);
+  T->set_omni_fire(P->OmniFire);
+  T->set_is_sonic(P->IsSonic);
+  T->set_spawner(P->Spawner);
+  T->set_cell_range_finding(P->CellRangefinding);
+  T->set_infinite_mind_control(P->InfiniteMindControl);
+  T->set_fire_while_moving(P->FireWhileMoving);
+  T->set_suicide(P->Suicide);
+  T->set_is_laser(P->IsLaser);
+  T->set_area_fire(P->AreaFire);
+}
+
+// https://github.com/Phobos-developers/YRpp/blob/b5f8a49939d97bdadbf055c5cb2758cbbfccc4a6/WarheadTypeClass.h#L14-L20
+struct VersesData {
+  double Verses;
+  // WarheadFlags
+  bool : 8;
+  bool : 8;
+  bool : 8;
+};
+
+void TypeClassParser::WarheadType() {
+  AbstractType();
+  auto* P = reinterpret_cast<WarheadTypeClass*>(c.src);
+  T->set_type(ra2yrproto::ra2yr::ABSTRACT_TYPE_WARHEADTYPE);
+  T->clear_verses();
+  for (int i = 0; i < 11; i++) {
+    // https://github.com/Phobos-developers/Phobos/blob/a87e52a2dca26f9a1cabe0b0002cddb385654ed5/src/Utilities/GeneralUtils.cpp#L74-L92
+    // YRpp: PROTECTED_PROPERTY(DWORD, unused_1CC);
+    auto ext_array = *reinterpret_cast<std::vector<VersesData>*>(
+        *reinterpret_cast<uintptr_t*>(reinterpret_cast<char*>(P) + 0x1CC) +
+        0x24);
+    T->add_verses(ext_array.at(i).Verses);
+  }
+  T->set_cell_spread(P->CellSpread);
+  T->set_percent_at_max(P->PercentAtMax);
+  T->set_wall(P->Wall);
+  T->set_wood(P->Wood);
+  T->set_em_effect(P->EMEffect);
+  T->set_mind_control(P->MindControl);
+  T->set_poison(P->Poison);
+  T->set_ivan_bomb(P->IvanBomb);
+  T->set_parasite(P->Parasite);
+  T->set_temporal(P->Temporal);
+  T->set_airstrike(P->Airstrike);
+  T->set_psychedelic(P->Psychedelic);
+  T->set_radiation(P->Radiation);
+  T->set_affects_allies(P->AffectsAllies);
+}
+
+void TypeClassParser::TerrainType() {
+  ObjectType();
+  auto* P = reinterpret_cast<TerrainTypeClass*>(c.src);
+  T->set_type(ra2yrproto::ra2yr::ABSTRACT_TYPE_TERRAINTYPE);
+  T->set_array_index(P->ArrayIndex);
+  T->set_spawns_tiberium(P->SpawnsTiberium);
+  T->set_foundation(static_cast<ra2yrproto::ra2yr::Foundation>(
+      P->Foundation));  // YRpp: use Foundation instead of int
+}
+
+void TypeClassParser::BulletType() {
+  ObjectType();
+  auto* P = reinterpret_cast<BulletTypeClass*>(c.src);
+  T->set_type(ra2yrproto::ra2yr::ABSTRACT_TYPE_BULLETTYPE);
+  T->set_arcing(P->Arcing);
+  T->set_inviso(P->Inviso);
+  T->set_inaccurate(P->Inaccurate);
+  T->set_aa(P->AA);
+  T->set_ag(P->AG);
+  T->set_projectile_rot(P->ROT);
+  T->set_subject_to_cliffs(P->SubjectToCliffs);
+  T->set_subject_to_elevation(P->SubjectToElevation);
+  T->set_subject_to_walls(P->SubjectToWalls);
 }
 
 void TypeClassParser::parse() {
@@ -243,6 +551,16 @@ void TypeClassParser::parse() {
     UnitType();
   } else if (t == OverlayTypeClass::AbsID) {
     OverlayType();
+  } else if (t == SuperWeaponTypeClass::AbsID) {
+    SuperWeaponType();
+  } else if (t == WeaponTypeClass::AbsID) {
+    WeaponType();
+  } else if (t == WarheadTypeClass::AbsID) {
+    WarheadType();
+  } else if (t == TerrainTypeClass::AbsID) {
+    TerrainType();
+  } else if (t == BulletTypeClass::AbsID) {
+    BulletType();
   } else {
     eprintf("unknown TypeClass: {}", static_cast<int>(t));
   }
@@ -363,6 +681,7 @@ static void parse_Cell(Cell* C, int ix, const CellClass& cc) {
   C->first_object = reinterpret_cast<std::uintptr_t>(cc.FirstObject);
   C->wall_owner_index = cc.WallOwnerIndex;
   C->overlay_type_index = cc.OverlayTypeIndex;
+  C->visibility = cc.Visibility;
 }
 
 std::vector<CellClass*> ra2::get_valid_cells(MapClass* M) {
@@ -648,8 +967,11 @@ int parse_object_array(ra2::abi::ABIGameMD* abi, T* src,
 void ra2::parse_Objects(ra2yrproto::ra2yr::GameState* G,
                         ra2::abi::ABIGameMD* abi) {
   auto* H = G->mutable_objects();
-  (void)ra2yrcpp::protocol::truncate(
-      H, parse_object_array(abi, TechnoClass::Array.get(), H, 0));
+  auto techno = parse_object_array(abi, TechnoClass::Array.get(), H, 0);
+  auto terrain = parse_object_array(abi, TerrainClass::Array.get(), H, techno);
+  auto total = parse_object_array(abi, SuperClass::Array.get(), H, terrain);
+  (void)ra2yrcpp::protocol::truncate(H,
+                                     total);  // remove empty entries at the end
 }
 
 void ra2::parse_HouseClasses(ra2yrproto::ra2yr::GameState* G) {
@@ -658,6 +980,63 @@ void ra2::parse_HouseClasses(ra2yrproto::ra2yr::GameState* G) {
   for (int i = 0; i < D->Count; i++) {
     ra2::parse_HouseClass(&H->at(i), D->Items[i]);
   }
+}
+
+void ra2::parse_RulesClass(ra2yrproto::ra2yr::GameState* G) {
+  auto* D = RulesClass::Instance.get();
+  auto* dst = G->mutable_rules_class();
+
+  dst->Clear();
+
+  dst->set_veteran_ratio(D->VeteranRatio);
+  dst->set_veteran_combat(D->VeteranCombat);
+  dst->set_veteran_speed(D->VeteranSpeed);
+  dst->set_veteran_sight(D->VeteranSight);
+  dst->set_veteran_armor(D->VeteranArmor);
+  dst->set_veteran_rof(D->VeteranROF);
+
+  dst->set_refund_percent(D->RefundPercent);
+  dst->set_reload_rate(D->ReloadRate);
+  dst->set_repair_percent(D->RepairPercent);
+  dst->set_repair_rate(D->RepairRate);
+  dst->set_repair_step(D->RepairStep);
+  dst->set_u_repair_rate(D->URepairRate);
+  dst->set_i_repair_rate(D->IRepairRate);
+  dst->set_i_repair_step(D->IRepairStep);
+  dst->set_self_heal_infantry_frames(D->SelfHealInfantryFrames);
+  dst->set_self_heal_infantry_amount(D->SelfHealInfantryAmount);
+  dst->set_self_heal_unit_frames(D->SelfHealUnitFrames);
+  dst->set_self_heal_unit_amount(D->SelfHealUnitAmount);
+
+  dst->set_multiple_factory(D->MultipleFactory);
+  dst->set_min_low_power_production_speed(D->MinLowPowerProductionSpeed);
+  dst->set_max_low_power_production_speed(D->MaxLowPowerProductionSpeed);
+
+  dst->set_bridge_strength(D->BridgeStrength);
+
+  dst->set_occupy_damage_multiplier(D->OccupyDamageMultiplier);
+  dst->set_occupy_rof_multiplier(D->OccupyROFMultiplier);
+  dst->set_occupy_weapon_range(D->OccupyWeaponRange);
+
+  dst->set_bunker_damage_multiplier(
+      *reinterpret_cast<const float* /* YRpp */>(&D->BunkerDamageMultiplier));
+  dst->set_bunker_rof_multiplier(D->BunkerROFMultiplier);
+  dst->set_bunker_weapon_range(D->BunkerWeaponRangeBonus);
+
+  dst->set_open_topped_damage_multiplier(D->OpenToppedDamageMultiplier);
+  dst->set_open_topped_range_bonus(D->OpenToppedRangeBonus);
+  dst->set_open_topped_warp_distance(D->OpenToppedWarpDistance);
+
+  dst->set_elevation_increment(D->ElevationIncrement);
+  dst->set_elevation_increment_bonus(D->ElevationIncrementBonus);
+  dst->set_elevation_bonus_cap(D->ElevationBonusCap);
+
+  dst->set_flight_level(D->FlightLevel);
+
+  dst->set_pointer_prerequisite_proc_alternate(reinterpret_cast<u32>(D->PrerequisiteProcAlternate));
+
+  dst->set_harvester_load_rate(D->HarvesterLoadRate);
+  dst->set_harvester_dump_rate(D->HarvesterDumpRate);
 }
 
 ra2yrproto::ra2yr::ObjectTypeClass* ra2::find_type_class(

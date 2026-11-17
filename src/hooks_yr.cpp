@@ -139,6 +139,7 @@ struct StateSave : public GameDataInterface {
       ra2::parse_prerequisiteGroups(prerequisite_groups());
       gbuf->mutable_object_types()->CopyFrom(*type_classes());
       gbuf->mutable_prerequisite_groups()->CopyFrom(*prerequisite_groups());
+      ra2::parse_RulesClass(gbuf);
     }
 
     gbuf->set_crc(EventClass::CurrentFrameCRC);

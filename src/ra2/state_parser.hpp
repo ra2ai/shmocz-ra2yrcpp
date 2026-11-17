@@ -39,6 +39,8 @@ struct ClassParser {
 
   ClassParser(Cookie c, ra2yrproto::ra2yr::Object* T);
 
+  void Abstract();
+
   void Object();
 
   void Mission();
@@ -56,6 +58,10 @@ struct ClassParser {
   void Building();
 
   void Infantry();
+
+  void SuperWeapon();
+
+  void Terrain();
 
   void parse();
 
@@ -83,6 +89,16 @@ struct TypeClassParser {
   void BuildingType();
 
   void OverlayType();
+
+  void SuperWeaponType();
+
+  void WeaponType();
+
+  void WarheadType();
+
+  void TerrainType();
+
+  void BulletType();
 
   void parse();
 };
@@ -124,7 +140,7 @@ struct Cell {
   bool shrouded;
   char height;
   char level;
-  char pad[1];
+  char visibility;
   std::uintptr_t first_object;
   i32 wall_owner_index;
   i32 overlay_type_index;
@@ -164,6 +180,7 @@ parse_AbstractTypeClasses(
 
 void parse_Objects(ra2yrproto::ra2yr::GameState* G, ra2::abi::ABIGameMD* abi);
 void parse_HouseClasses(ra2yrproto::ra2yr::GameState* G);
+void parse_RulesClass(ra2yrproto::ra2yr::GameState* G);
 
 ra2yrproto::ra2yr::ObjectTypeClass* find_type_class(
     gpb::RepeatedPtrField<ra2yrproto::ra2yr::ObjectTypeClass>* types,

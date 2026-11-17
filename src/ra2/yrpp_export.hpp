@@ -30,13 +30,19 @@
 #include <ProgressScreenClass.h>
 #include <RulesClass.h>
 #include <StageClass.h>
+#include <SuperClass.h>
+#include <SuperWeaponTypeClass.h>
 #include <TargetClass.h>
 #include <TechnoClass.h>
 #include <TechnoTypeClass.h>
+#include <TerrainClass.h>
+#include <TerrainTypeClass.h>
 #include <TiberiumClass.h>
 #include <UnitClass.h>
 #include <UnitTypeClass.h>
 #include <Unsorted.h>
+#include <WarheadTypeClass.h>
+#include <WeaponTypeClass.h>
 // IWYU pragma: end_exports
 
 #undef ERROR
