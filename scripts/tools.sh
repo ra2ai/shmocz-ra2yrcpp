@@ -86,12 +86,10 @@ function build-docs() {
 
 function build-cpp() {
     # TODO: if using custom targets on mingw, the copied libs arent marked as deps!
-    if [ ! -d "$BUILD_DIR" ]; then
-        cmake-config "$BUILD_DIR"
-    fi
     set -e
-    cmake --build $BUILD_DIR --config $CMAKE_BUILD_TYPE --target $CMAKE_TARGET -j $NPROC
-    cmake --build $BUILD_DIR --config $CMAKE_BUILD_TYPE --target install/fast
+    cmake-config "$BUILD_DIR"
+    cmake --build "$BUILD_DIR" --config $CMAKE_BUILD_TYPE --target $CMAKE_TARGET -j $NPROC
+    cmake --build "$BUILD_DIR" --config $CMAKE_BUILD_TYPE --target install/fast
     set +e
 }
 
