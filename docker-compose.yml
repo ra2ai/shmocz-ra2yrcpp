@@ -7,7 +7,6 @@ services:
     volumes:
       - .:/home/user/project
       - ./wine-dir:/home/user/.wine
-    user: "${UID}:${UID}"
     command: "${COMMAND}"
     working_dir: /home/user/project
   clang-cl:
@@ -20,4 +19,3 @@ services:
       - ./.wine-clang:/home/user/.wine
     command: "${COMMAND}"
     working_dir: /home/user/project
-    user: "${UID}:${UID}"
