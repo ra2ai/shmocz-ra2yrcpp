@@ -70,11 +70,16 @@ function lintfix() {
 }
 
 function cmake-config() {
+    if grep -q -z -P '(^|\s)-[DU]\s*RA2YRPROTO_SOURCE_DIR([:=\s]|$)' <<< "$CMAKE_EXTRA_ARGS"; then
+        echo 'Error: Set RA2YRPROTO_SOURCE_DIR as an environment variable, not in CMAKE_EXTRA_ARGS.' >&2
+        exit 1
+    fi
     mkdir -p "$1"
     CMAKE_TOOLCHAIN_FILE="$(realpath "$CMAKE_TOOLCHAIN_FILE")" \
         cmake \
         -DCMAKE_INSTALL_PREFIX="$BASE_DIR/pkg" \
         -DRA2YRCPP_VERSION=$VERSION \
+        "-DRA2YRPROTO_SOURCE_DIR=${RA2YRPROTO_SOURCE_DIR:-$PWD/src/protocol/ra2yrproto}" \
         $CMAKE_EXTRA_ARGS \
         -G "Unix Makefiles" \
         -S . -B "$1"

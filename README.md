@@ -80,17 +80,22 @@ git clone -b v1.2.8 https://github.com/madler/zlib.git 3rdparty/zlib
 
 For convenience, a Docker image is provided for both MinGW and clang-cl toolchains with all necessary dependencies to build the application and related components. MinGW toolchain is used by default.
 
-Build the images:
+Build the image of the library builder:
 
 ```bash
 docker compose build builder
 ```
 
-Build the library with docker:
+Build the library with docker. Always use our scripts:
 
 ```bash
 ./scripts/tools.sh docker-build
 ```
+
+Optional environment variables:
+
+- `RA2YRCPP_BUILDER_IMAGE`: Docker image tag of the builder (default: `shmocz/ra2yrcpp:latest`). This can be used to test local images.
+- `RA2YRPROTO_SOURCE_DIR`: Absolute path to a local `ra2yrproto` checkout (defaults to the bundled submodule at `./src/protocol/ra2yrproto`). Uncommitted changes will also be picked up.
 
 ### General build instructions (for developers)
 

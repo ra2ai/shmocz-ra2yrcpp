@@ -1,12 +1,21 @@
 services:
   builder:
-    image: shmocz/ra2yrcpp:latest
+    image: ${RA2YRCPP_BUILDER_IMAGE:-shmocz/ra2yrcpp:latest}
     build:
       context: .
       dockerfile: docker/Dockerfile
     volumes:
       - .:/home/user/project
       - ./wine-dir:/home/user/.wine
+      - &ra2yrproto_mount
+        type: bind
+        source: ${RA2YRPROTO_SOURCE_DIR:-./src/protocol/ra2yrproto}
+        target: /home/user/ra2yrproto
+        read_only: true
+        bind:
+          create_host_path: false
+    environment: &ra2yrproto_env
+      RA2YRPROTO_SOURCE_DIR: /home/user/ra2yrproto
     command: "${COMMAND}"
     working_dir: /home/user/project
   clang-cl:
@@ -17,5 +26,7 @@ services:
     volumes:
       - .:/home/user/project
       - ./.wine-clang:/home/user/.wine
+      - *ra2yrproto_mount
+    environment: *ra2yrproto_env
     command: "${COMMAND}"
     working_dir: /home/user/project
